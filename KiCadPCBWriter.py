@@ -1,22 +1,24 @@
 # python kicad scripting
 # Brandon Stacy 
-# Last Edit 10/24/2021
+# Last Edit 10/30/2021
 # can make two layer pcb antenna with vias
 
 # import helper libraries
 import numpy as np;
+import matplotlib.pyplot as plt;
 
 def KicadPCBWriter(filename, BtmE, TopE, Outlines, ViaArray, myText, TopMask, BtmMask, TopScreen, BtmScreen):
     FID = pcb_open(filename); # create pcb file
     pcb_general(FID); # create intial file headers
-    pcb_netlist(FID, 0); # write nets to file
+    pcb_netlist(FID, 0,'Signal'); # write nets to file
+    pcb_netlist(FID, 1,'GND'); # write nets to file
 
     for m in range(0,len(ViaArray)):
-        pcb_via(FID,ViaArray[m][0],ViaArray[m][1],ViaArray[m][2],ViaArray[m][3],0); 
+        pcb_via(FID,ViaArray[m][0],ViaArray[m][1],ViaArray[m][2],ViaArray[m][3],1); 
     for m in range(0,len(TopE)):
-        pcb_filledPolygon(FID, TopE[m][0], TopE[m][1], 'F.Cu', 0);
+        pcb_filledPolygon(FID, TopE[m][0], TopE[m][1], 'F.Cu', TopE[m][2],TopE[m][3]);
     for m in range(0,len(BtmE)):
-        pcb_filledPolygon(FID, BtmE[m][0], BtmE[m][1], 'B.Cu', 0);
+        pcb_filledPolygon(FID, BtmE[m][0], BtmE[m][1], 'B.Cu', BtmE[m][2],BtmE[m][3]);
     for m in range(0,len(Outlines)):
         pcb_outline(FID, Outlines[m][0], Outlines[m][1], 0.05)
     for m in range(0,len(TopMask)):
@@ -52,12 +54,12 @@ def pcb_text(FID,layer,x,y,sx,sy,thickness,text):
     effect = '(effects (font (size '+str(sx)+' '+str(sy) +') (thickness '+str(thickness)+')))';
     FID.write('  (gr_text "' + text+'"'+ pos +layer +effect+ ') \n'); 
 
-def pcb_filledPolygon(FID,Px,Py,myLayer,netNO):
+def pcb_filledPolygon(FID,Px,Py,myLayer,netNO,netname):
     XYP = '';
     for m in range(0,len(Px)):
         XYP = XYP+'(xy '+str(Px[m])+ ' ' +str(Py[m])+ ') ';
 
-    FID.write( '  (zone (net '+str(netNO)+') (net_name "") (layer '+myLayer+') (tstamp 5AB41BC6) (hatch edge 0.508) \n');
+    FID.write( '  (zone (net '+str(netNO)+') (net_name "'+netname+'") (layer '+myLayer+') (tstamp 5AB41BC6) (hatch edge 0.508) \n');
     FID.write(  '    (connect_pads (clearance 0.508)) \n');
     FID.write(  '    (min_thickness 0.254) \n');
     FID.write(  '    (fill yes (arc_segments 32) (thermal_gap 0.508) (thermal_bridge_width 0.508)) \n');
@@ -81,8 +83,8 @@ def pcb_outline(FID,Xoutline,Youtline,linewidth):
         tEND = ' (end '   +str(Xoutline[m+1])+ ' ' +str(Youtline[m+1])+ ')';
         FID.write('  (gr_line'+ tST+ tEND+ tLY+ tLW+ ') \n');    
 
-def pcb_netlist(FID,netno):
-    FID.write('  (net ' +str(netno) +' "") \n');
+def pcb_netlist(FID,netno,netname):
+    FID.write('  (net ' +str(netno) +' "'+netname+'") \n');
     FID.write( '  (net_class Default "default net class." \n');
     FID.write( '    (clearance 0.2) \n');
     FID.write( '    (trace_width 0.25) \n');
@@ -192,6 +194,8 @@ def pcb_general(FID):
 
 # comment out main when using as module
 def main():
+    pcb_write = True;
+
     xoffset = 100; # mm
     yoffset = 25; # mm
     Frequency = 2; # GHz
@@ -281,12 +285,24 @@ def main():
         temp_vias.append(Drillsize);
         Vias.append(temp_vias);
 
-    BtmE = [[GroundX,GroundY]];
-    TopE = [[PatchX,PatchY],[ConPadLeftX,ConPadY],[ConPadRightX,ConPadY]];
+    BtmE = [[GroundX,GroundY,1,'GND']];
+    TopE = [[PatchX,PatchY,0,'Signal'],[ConPadLeftX,ConPadY,1,'GND'],[ConPadRightX,ConPadY,1,'GND']];
     myText = [['F.Cu',0,0,1.5,1.5,.3,"Brandon S."]];
 
+    '''
+    # plotting
+    plt.figure();
+    plt.fill(GroundX,GroundY,"y"); # ground plane
+    for i in range(0,len(BtmE)):
+        plt.fill(BtmE[i][0],BtmE[i][1],"b",alpha=.6);
+    for i in range(0,len(TopE)):
+        plt.fill(TopE[i][0],TopE[i][1],"y");
+    plt.show();
+    '''
+
     # KicadPCBWriter(filename, BtmE, TopE, Outlines, ViaArray, myText, TopMask, BtmMask, TopScreen, BtmScreen): # pcb writer 
-    KicadPCBWriter(filename,BtmE,TopE,BtmE,Vias,myText,[],[],[],BtmE);
+    if pcb_write:
+        KicadPCBWriter(filename,BtmE,TopE,BtmE,Vias,[],[],[],[],[]);
 
 if __name__ == "__main__":
     main();
