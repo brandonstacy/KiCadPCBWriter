@@ -1,6 +1,6 @@
 # python kicad scripting
 # Brandon Stacy 
-# Last Edit 10/30/2021
+# Last Edit 10/24/2021
 # can make two layer pcb antenna with vias
 
 # import helper libraries
@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt;
 
 def KicadPCBWriter(filename, BtmE, TopE, Outlines, ViaArray, myText, TopMask, BtmMask, TopScreen, BtmScreen):
     FID = pcb_open(filename); # create pcb file
-    pcb_general(FID); # create intial file headers
+    pcb_general(FID,2); # create intial file headers
     pcb_netlist(FID, 0,'Signal'); # write nets to file
     pcb_netlist(FID, 1,'GND'); # write nets to file
 
@@ -96,7 +96,7 @@ def pcb_netlist(FID,netno,netname):
     FID.write( '   \n');
     FID.write( '   \n');
 
-def pcb_general(FID):
+def pcb_general(FID,totalNets):
     FID.write('(kicad_pcb (version 20171130) (host pcbnew "(5.1.5)-3") \n');
     FID.write('   \n');
     FID.write('  (general \n');
@@ -105,7 +105,7 @@ def pcb_general(FID):
     FID.write('    (tracks 0) \n');
     FID.write('    (zones 0) \n');
     FID.write('    (modules 0) \n');
-    FID.write('    (nets 1) \n');
+    FID.write('    (nets '+str(totalNets)+') \n');
     FID.write('  ) \n');
     FID.write('   \n');
     FID.write('  (page A4) \n');
@@ -194,21 +194,38 @@ def pcb_general(FID):
 
 # comment out main when using as module
 def main():
-    pcb_write = True;
+    pcb_write = False;
 
+    # constants
+    c = 3e8;
+    mm = 1E-3;
     xoffset = 100; # mm
     yoffset = 25; # mm
-    Frequency = 2; # GHz
+    Frequency = 1.4; # GHz
 
     filename = str(Frequency)+"GHz_PatchPy.kicad_pcb";
 
-    # Patch Parameters
-    Wpatch = 46;
-    Lpatch = 35;
+    hsub = 0.4*mm;
+    Er = 4.4;
+    
+    Wpatch_calc = (c/(2*Frequency*1E9*np.sqrt((Er+1)/2))); # calculated width of patch
+
+    Eeff = ((Er+1)/2)+((Er-1)/2)*((1+12*(hsub/Wpatch_calc))**(-.5));
+
+    Leff = (c/(2*Frequency*1E9*np.sqrt(Eeff)));
+    Del = 0.412*hsub*(((Eeff+.3)*((Wpatch_calc/hsub)+.264))/((Eeff-.258)*((Wpatch_calc/hsub)+.8)))
+
+    Lpatch_calc = Leff - 2*Del;
+
+    # Patch Parameters (HFSS Optimized)
+    #Wpatch = 46; # units in mm
+    #Lpatch = 35; # units in mm
+    Wpatch = Wpatch_calc*1000; # using calculated values in mm instead of HFSS
+    Lpatch = Lpatch_calc*1000; # using calculated values in mm instead of HFSS
 
     # Substrate and ground Parameters
-    SubstrateLength = 100;
-    SubstrateWidth = 100;
+    SubstrateLength = 150;
+    SubstrateWidth = 150;
 
     # Feed Parameters
     W0 = 2.29;
@@ -289,16 +306,14 @@ def main():
     TopE = [[PatchX,PatchY,0,'Signal'],[ConPadLeftX,ConPadY,1,'GND'],[ConPadRightX,ConPadY,1,'GND']];
     myText = [['F.Cu',0,0,1.5,1.5,.3,"Brandon S."]];
 
-    '''
     # plotting
     plt.figure();
-    plt.fill(GroundX,GroundY,"y"); # ground plane
+    plt.fill(GroundX-xoffset,GroundY-yoffset,"y"); # ground plane
     for i in range(0,len(BtmE)):
-        plt.fill(BtmE[i][0],BtmE[i][1],"b",alpha=.6);
+        plt.fill(BtmE[i][0]-xoffset,BtmE[i][1]-yoffset,"b",alpha=.6);
     for i in range(0,len(TopE)):
-        plt.fill(TopE[i][0],TopE[i][1],"y");
+        plt.fill(TopE[i][0]-xoffset,TopE[i][1]-yoffset,"y");
     plt.show();
-    '''
 
     # KicadPCBWriter(filename, BtmE, TopE, Outlines, ViaArray, myText, TopMask, BtmMask, TopScreen, BtmScreen): # pcb writer 
     if pcb_write:
